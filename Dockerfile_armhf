@@ -15,7 +15,7 @@ RUN set -xe && \
     apk add -Uu --purge --no-cache curl python openssl git nodejs nodejs-npm && \
       if [ -n $(which npm) ]; then \
         echo "Installing npm@${NPM_VERSION}"; \
-        npm install -g npm@${NPM_VERSION} && \
+        npm install -g npm@${NPM_VERSION} --loglevel=debug && \
 	npm ls && \
         find /usr/lib/node_modules/npm -name test -o -name .bin -type d | xargs rm -rf; \
       fi && \

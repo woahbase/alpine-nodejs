@@ -19,6 +19,7 @@ IMAGETAG  := $(USERNAME)/$(DOCKEREPO):$(ARCH)
 # {{{ -- flags
 
 BUILDFLAGS := --rm --force-rm --compress -f $(CURDIR)/Dockerfile_$(ARCH) -t $(IMAGETAG) \
+	--dns=8.8.8.8
 	--build-arg ARCH=$(ARCH) \
 	--build-arg DOCKERSRC=$(DOCKERSRC) \
 	--build-arg USERNAME=$(USERNAME) \
