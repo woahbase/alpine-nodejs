@@ -58,7 +58,8 @@ architecture, e.g for an x86_64 machine..
 # make
 docker run --rm -it \
   --name docker_nodejs --hostname nodejs \
-  woahbase/alpine-nodejs:x86_64
+  woahbase/alpine-nodejs:x86_64 \
+  bash
 
 # make stop
 docker stop -t 2 docker_nodejs

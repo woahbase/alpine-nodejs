@@ -4,8 +4,8 @@ ARG USERNAME=frommakefile
 #
 FROM ${USERNAME}/${DOCKERSRC}:${ARCH}
 #
-ARG PUID=1000
-ARG PGID=1000
+ARG PUID=1001
+ARG PGID=1001
 ENV ARCH=linux-armv7l NPM_VERSION=latest
 #
 RUN addgroup -g ${PGID} -S alpine && \
