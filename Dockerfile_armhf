@@ -12,12 +12,10 @@ RUN addgroup -g ${PGID} -S alpine && \
     adduser -u ${PUID} -G alpine -h /home/alpine -D alpine
 RUN set -xe && \
     # echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \
-    apk add -Uu --purge --no-cache curl python openssl nodejs nodejs-npm && \
+    apk add -Uu --purge --no-cache curl python git openssl nodejs nodejs-npm && \
       if [ -n $(which npm) ]; then \
-        echo "Installing npm@${NPM_VERSION}"; \
-	npm config set registry http://registry.npmjs.org/; \
-	npm config set strict-ssl false; \
-        npm install -g npm@${NPM_VERSION} -ddd && \
+        echo "Installing npm@${NPM_VERSION}" && \
+        npm install -ddd -g npm@${NPM_VERSION} && \
 	npm ls && \
         find /usr/lib/node_modules/npm -name test -o -name .bin -type d | xargs rm -rf; \
       fi && \
