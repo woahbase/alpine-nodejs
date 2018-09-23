@@ -6,7 +6,7 @@
 
 This [image][233] serves as the base image for applications
 / services that require [NodeJS][135] and [NPM][136] to manage
-dependencies.
+dependencies. (Now also including [Yarn][137] and [git][101].)
 
 Based on [Alpine Linux][131] from my [alpine-s6][132] image with
 the [s6][133] init system [overlayed][134] in it.
@@ -167,7 +167,7 @@ docker run --rm -it \
   --name docker_nodejs --hostname nodejs \
   -e PGID=1000 -e PUID=1000 \
   woahbase/alpine-nodejs:x86_64 \
-  sh -ec 'node --version; npm --version'
+  sh -ec 'node --version; npm --version; yarn --version; git --version'
 ```
 
 And finally, if you have push access,
@@ -201,6 +201,7 @@ Maintained by [WOAHBase][204].
 [134]: https://github.com/just-containers/s6-overlay
 [135]: https://nodejs.org/
 [136]: https://www.npmjs.com/
+[137]: https://yarnpkg.com/
 
 [201]: https://github.com/woahbase
 [202]: https://travis-ci.org/woahbase/
