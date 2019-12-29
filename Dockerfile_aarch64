@@ -14,11 +14,12 @@ RUN set -xe \
     && apk add -Uu --purge --no-cache curl git openssl nodejs nodejs-npm python \
     && if [ -n $(which npm) ]; then \
         echo "Installing npm@${NPM_VERSION}"; \
-        npm install --unsafe-perm -g npm@${NPM_VERSION} yarn@${YARN_VERSION} \
-	    && npm ls \
+	HOME=/tmp \
+        && npm install -g npm@${NPM_VERSION} yarn@${YARN_VERSION} \
+        && npm ls \
         && find /usr/lib/node_modules/npm -name test -o -name .bin -type d | xargs rm -rf; \
     fi \
-    && rm -rf /usr/share/man /tmp/* /var/cache/apk/* /root/.npm /root/.node-gyp \
+    && rm -rf /usr/share/man /tmp/* /var/cache/apk/* /tmp/.npm /tmp/.node-gyp \
         /usr/lib/node_modules/npm/man /usr/lib/node_modules/npm/doc /usr/lib/node_modules/npm/html
 # ENTRYPOINT ["/init"]
 # ENTRYPOINT ["/usr/bin/node"]
