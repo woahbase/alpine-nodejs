@@ -15,7 +15,7 @@ RUN set -xe \
     && if [ -n $(which npm) ]; then \
         echo "Installing npm@${NPM_VERSION}"; \
 	HOME=/tmp \
-        && npm install -g npm@${NPM_VERSION} yarn@${YARN_VERSION} \
+        && npm install --unsafe-perm -g npm@${NPM_VERSION} yarn@${YARN_VERSION} \
         && npm ls \
         && find /usr/lib/node_modules/npm -name test -o -name .bin -type d | xargs rm -rf; \
     fi \
