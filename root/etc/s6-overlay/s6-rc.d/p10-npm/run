@@ -1,0 +1,41 @@
+#!/usr/bin/with-contenv bash
+set -e
+
+# install these packages using npm, specified on runtime
+# set npm cache dir to fix https://stackoverflow.com/questions/59437833
+# S6_NPM_PACKAGES=""; # list of packages passed at runtime, if required
+if [ -n "${S6_NPM_PACKAGES}" ]; then
+    npm_config_cache=/root/.npm \
+        s6-setuidgid root npm install -g ${S6_NPM_PACKAGES};
+fi;
+
+# S6_NPM_PROJECTDIR=""; # path to project passed at runtime, if required
+# S6_NPM_LOCAL_PACKAGES=""; # list of packages passed at runtime, if required
+if [ -n "${S6_NPM_PROJECTDIR}" ]; then
+    if [ ! -d "${S6_NPM_PROJECTDIR}" ]; then # ensure exists and accessible by $PUID/$PGID
+        mkdir -p ${S6_NPM_PROJECTDIR};
+        chown ${S6_USER} ${S6_NPM_PROJECTDIR};
+    fi;
+
+    if [ -z "${S6_NPM_SKIP_INSTALL}" ] \
+    && [ -f "${S6_NPM_PROJECTDIR}/package.json" ] \
+    || [ -f "${S6_NPM_PROJECTDIR}/package-lock.json" ] \
+    || [ -f "${S6_NPM_PROJECTDIR}/npm-shrinkwrap.json" ]; then
+        cd ${S6_NPM_PROJECTDIR} \
+        && npm_config_cache=${S6_NPM_PROJECTDIR}/.npm \
+        s6-setuidgid \
+            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+            npm install;
+    fi;
+    if [ -n "${S6_NPM_LOCAL_PACKAGES}" ];
+    then
+        cd ${S6_NPM_PROJECTDIR} \
+        && npm_config_cache=${S6_NPM_PROJECTDIR}/.npm \
+        s6-setuidgid \
+            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+            npm install ${S6_NPM_LOCAL_PACKAGES};
+    fi;
+    # add project node_modules binaries dir to PATH
+    # visible to with-contenv
+    echo -en "${S6_NPM_PROJECTDIR}/node_modules/.bin:$PATH" > /run/s6/container_environment/PATH;
+fi;
