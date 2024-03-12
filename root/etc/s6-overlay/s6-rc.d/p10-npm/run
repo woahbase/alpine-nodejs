@@ -5,6 +5,7 @@ set -e
 # set npm cache dir to fix https://stackoverflow.com/questions/59437833
 # S6_NPM_PACKAGES=""; # list of packages passed at runtime, if required
 if [ -n "${S6_NPM_PACKAGES}" ]; then
+    HOME=/root \
     npm_config_cache=/root/.npm \
         s6-setuidgid root npm install -g ${S6_NPM_PACKAGES};
 fi;
