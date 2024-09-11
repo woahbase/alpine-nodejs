@@ -1,10 +1,14 @@
 #!/usr/bin/with-contenv bash
 set -e
 
+vecho () { if [ "${S6_VERBOSITY:-1}" -gt 0 ]; then echo "[$0] $@"; fi; }
+
 # install these packages using yarn, specified on runtime
 # set yarn cache dir to fix https://stackoverflow.com/questions/59437833
 # S6_YARN_PACKAGES=""; # list of packages passed at runtime, if required
-if [ -n "${S6_YARN_PACKAGES}" ]; then
+if [ -n "${S6_YARN_PACKAGES}" ];
+then
+    vecho "Installing YARN global packages: ${S6_YARN_PACKAGES}";
     YARN_CACHE_FOLDER=/root/.cache/yarn \
         s6-setuidgid root yarn global add ${S6_YARN_PACKAGES};
 fi;
@@ -12,14 +16,18 @@ fi;
 # S6_YARN_PROJECTDIR=""; # path to project passed at runtime, if required
 # S6_YARN_LOCAL_PACKAGES=""; # list of packages passed at runtime, if required
 if [ -n "${S6_YARN_PROJECTDIR}" ]; then
-    if [ ! -d "${S6_YARN_PROJECTDIR}" ]; then # ensure exists and accessible by $PUID/$PGID
+    if [ ! -d "${S6_YARN_PROJECTDIR}" ]; # ensure exists and accessible by $PUID/$PGID
+    then
+        vecho "Ensure project-dir exists: ${S6_YARN_PROJECTDIR}";
         mkdir -p ${S6_YARN_PROJECTDIR};
         chown ${S6_USER} ${S6_YARN_PROJECTDIR};
     fi;
 
     if [ -z "${S6_YARN_SKIP_INSTALL}" ] \
     && [ -f "${S6_YARN_PROJECTDIR}/package.json" ] \
-    || [ -f "${S6_YARN_PROJECTDIR}/yarn.lock" ]; then
+    || [ -f "${S6_YARN_PROJECTDIR}/yarn.lock" ];
+    then
+        vecho "Installing YARN dependencies for: ${S6_YARN_PROJECTDIR}";
         cd ${S6_YARN_PROJECTDIR} \
         && YARN_CACHE_FOLDER=${S6_YARN_PROJECTDIR}/.cache/yarn \
         s6-setuidgid \
@@ -28,6 +36,7 @@ if [ -n "${S6_YARN_PROJECTDIR}" ]; then
     fi;
     if [ -n "${S6_YARN_LOCAL_PACKAGES}" ];
     then
+        vecho "Installing YARN project-local packages: ${S6_YARN_LOCAL_PACKAGES}";
         cd ${S6_YARN_PROJECTDIR} \
         && YARN_CACHE_FOLDER=${S6_YARN_PROJECTDIR}/.cache/yarn \
         s6-setuidgid \

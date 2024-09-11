@@ -1,10 +1,14 @@
 #!/usr/bin/with-contenv bash
 set -e
 
+vecho () { if [ "${S6_VERBOSITY:-1}" -gt 0 ]; then echo "[$0] $@"; fi; }
+
 # install these packages using npm, specified on runtime
 # set npm cache dir to fix https://stackoverflow.com/questions/59437833
 # S6_NPM_PACKAGES=""; # list of packages passed at runtime, if required
-if [ -n "${S6_NPM_PACKAGES}" ]; then
+if [ -n "${S6_NPM_PACKAGES}" ];
+then
+    vecho "Installing NPM global packages: ${S6_NPM_PACKAGES}";
     HOME=/root \
     npm_config_cache=/root/.npm \
         s6-setuidgid root npm install -g ${S6_NPM_PACKAGES};
@@ -13,7 +17,9 @@ fi;
 # S6_NPM_PROJECTDIR=""; # path to project passed at runtime, if required
 # S6_NPM_LOCAL_PACKAGES=""; # list of packages passed at runtime, if required
 if [ -n "${S6_NPM_PROJECTDIR}" ]; then
-    if [ ! -d "${S6_NPM_PROJECTDIR}" ]; then # ensure exists and accessible by $PUID/$PGID
+    if [ ! -d "${S6_NPM_PROJECTDIR}" ]; # ensure exists and accessible by $PUID/$PGID
+    then
+        vecho "Ensure project-dir exists: ${S6_NPM_PROJECTDIR}";
         mkdir -p ${S6_NPM_PROJECTDIR};
         chown ${S6_USER} ${S6_NPM_PROJECTDIR};
     fi;
@@ -21,7 +27,9 @@ if [ -n "${S6_NPM_PROJECTDIR}" ]; then
     if [ -z "${S6_NPM_SKIP_INSTALL}" ] \
     && [ -f "${S6_NPM_PROJECTDIR}/package.json" ] \
     || [ -f "${S6_NPM_PROJECTDIR}/package-lock.json" ] \
-    || [ -f "${S6_NPM_PROJECTDIR}/npm-shrinkwrap.json" ]; then
+    || [ -f "${S6_NPM_PROJECTDIR}/npm-shrinkwrap.json" ];
+    then
+        vecho "Installing NPM dependencies for: ${S6_NPM_PROJECTDIR}";
         cd ${S6_NPM_PROJECTDIR} \
         && npm_config_cache=${S6_NPM_PROJECTDIR}/.npm \
         s6-setuidgid \
@@ -30,6 +38,7 @@ if [ -n "${S6_NPM_PROJECTDIR}" ]; then
     fi;
     if [ -n "${S6_NPM_LOCAL_PACKAGES}" ];
     then
+        vecho "Installing NPM project-local packages: ${S6_NPM_LOCAL_PACKAGES}";
         cd ${S6_NPM_PROJECTDIR} \
         && npm_config_cache=${S6_NPM_PROJECTDIR}/.npm \
         s6-setuidgid \
