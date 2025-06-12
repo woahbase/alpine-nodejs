@@ -26,11 +26,12 @@ VERSION   ?= $(call get_svc_version)
 
 TESTCMD   := \
 	uname -a; \
+	git --version; \
 	node --version; \
 	npm --version; \
 	npx --version; \
 	yarn --version; \
-	git --version; \
+	pnpm --version; \
 	#
 # -- }}}
 
@@ -88,7 +89,12 @@ MOUNTFLAGS := \
 	# -v /etc/hosts:/etc/hosts:ro \
 	# -v /etc/localtime:/etc/localtime:ro \
 	#
-PORTFLAGS  := #
+PORTFLAGS  := \
+	# # or use host network
+	# --net=host \
+	# # so other local containers can find it without explicit linking,
+	# # needs firewall cleared
+	#
 PUID       := $(shell id -u)
 PGID       := $(shell id -g)# gid 100(users) usually pre exists
 OTHERFLAGS := \
@@ -98,16 +104,24 @@ OTHERFLAGS := \
 	-m 512m \
 	-e PGID=$(PGID) \
 	-e PUID=$(PUID) \
+	# \
+	# -e TZ=Asia/Kolkata \
 	# -e S6_NEEDED_PACKAGES="python3" \
+	# \
 	# -e S6_NPM_PACKAGES="nodemon netlify-cli" \
 	# -e S6_NPM_PROJECTDIR="/home/alpine/project" \
 	# -e S6_NPM_LOCAL_PACKAGES="axios vue" \
-	# -e S6_NPM_SKIP_INSTALL="true" \
+	# \
 	# -e S6_YARN_PACKAGES="nodemon netlify-cli" \
 	# -e S6_YARN_PROJECTDIR="/home/alpine/project" \
 	# -e S6_YARN_LOCAL_PACKAGES="axios vue" \
-	# -e S6_YARN_SKIP_INSTALL="true" \
-	# -e TZ=Asia/Kolkata \
+	# \
+	# -e S6_PNPM_PACKAGES="nodemon netlify-cli" \
+	# -e S6_PNPM_PROJECTDIR="/home/alpine/project" \
+	# -e S6_PNPM_LOCAL_PACKAGES="axios vue" \
+	# \
+	# -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+	# -e NODE_OPTIONS="--max-old-space-size=8192" \
 	#
 # all runtime flags combined here
 RUNFLAGS   := \
@@ -153,7 +167,7 @@ debug : ## shell into container as user
 stop : ## stop container
 	docker stop -t 2 $(CNTNAME)
 
-test : regbinfmt
+test : inbinfmt
 test : ## run test command, i.e. TESTCMD
 	if [ -z "$(SKIP_TEST_$(ARCH))" ] && [ -z "$(SKIP_TEST)" ] && [ -z "$(SKIP_$(ARCH))" ]; \
 	then \
@@ -170,7 +184,7 @@ test : ## run test command, i.e. TESTCMD
 # -- }}}
 
 # {{{ -- image targets
-build : regbinfmt
+build : inbinfmt
 build : BUILDX := $(shell docker buildx version 1>/dev/null 2>&1 && echo 'present' || echo 'absent')
 build : ## build image
 	if [ -z "$(SKIP_$(ARCH))" ]; \
@@ -197,6 +211,8 @@ build : ## build image
 		echo "Skipping build: $(IMAGETAG)."; \
 	fi;
 
+clean : ARCH = *
+clean : unbinfmt
 clean : ## cleanup
 	docker images -a --format '{{.Repository}}:{{.Tag}}' \
 		| grep "$(ORGNAME)/$(REPONAME)" \
@@ -236,7 +252,10 @@ push : BUILDDATETAG ?= $(subst $(ARCH),$(ARCH)$(if $(VERSION),_$(VERSION),)_$(BU
 push : ## push image
 	if [ -z "$(SKIP_$(ARCH))" ]; \
 	then \
-		docker push $(IMAGETAG); \
+		if [ -z "$(SKIP_LATESTTAG)" ]; \
+		then \
+			docker push $(IMAGETAG); \
+		fi; \
 		if [ -z "$(SKIP_VERSIONTAG)" ] && [ -n "$(VERSION)" ];\
 		then \
 			echo "Tagging $(VERSIONTAG)"; \
@@ -270,8 +289,11 @@ push_registry_% : ## push image to a different registry
 		then \
 			echo "Tagging $(REGDSTTAG)"; \
 			docker tag $(IMAGETAG) $(REGDSTTAG); \
+			if [ -z "$(SKIP_LATESTTAG)" ]; \
+			then \
+				docker push $(REGDSTTAG); \
+			fi; \
 		fi; \
-		docker push $(REGDSTTAG); \
 		if [ -z "$(SKIP_VERSIONTAG)" ] && [ -n "$(VERSION)" ];\
 		then \
 			echo "Tagging $(REGDSTVERSIONTAG)"; \
@@ -298,25 +320,21 @@ push_registry_% : ## push image to a different registry
 # manifest: SKIP_armhf=
 # if tagname != latest, use $(ARCH)_$(TAGNAME) to annotate, else just $(ARCH)
 # manifest: TAGNAME = latest
+manifest: TAGSLIST ?= \
+	$(if $(SKIP_x86_64),,$(subst $(ARCH),x86_64$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
+	$(if $(SKIP_aarch64),,$(subst $(ARCH),aarch64$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
+	$(if $(SKIP_armv7l),,$(subst $(ARCH),armv7l$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
+	$(if $(SKIP_armhf),,$(subst $(ARCH),armhf$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
+	#
 manifest: ## create or update image(s) manifest
 	if [ -z "$(SKIP_ANNOTATE)" ]; \
 	then \
 		MANIFESTTAG=$(subst $(ARCH),$(TAGNAME),$(IMAGETAG)); \
 		docker manifest inspect $${MANIFESTTAG} > /dev/null 2>&1; \
 		if [ $$? != 0 ]; then docker manifest create \
-			$${MANIFESTTAG} \
-			$(if $(SKIP_x86_64),,$(subst $(ARCH),x86_64$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			$(if $(SKIP_aarch64),,$(subst $(ARCH),aarch64$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			$(if $(SKIP_armv7l),,$(subst $(ARCH),armv7l$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			$(if $(SKIP_armhf),,$(subst $(ARCH),armhf$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			;\
+			$${MANIFESTTAG} $(TAGSLIST); \
 		else docker manifest create --amend \
-			$${MANIFESTTAG} \
-			$(if $(SKIP_x86_64),,$(subst $(ARCH),x86_64$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			$(if $(SKIP_aarch64),,$(subst $(ARCH),aarch64$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			$(if $(SKIP_armv7l),,$(subst $(ARCH),armv7l$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			$(if $(SKIP_armhf),,$(subst $(ARCH),armhf$(if $(subst latest,,$(TAGNAME)),_$(TAGNAME),),$(IMAGETAG))) \
-			;\
+			$${MANIFESTTAG} $(TAGSLIST); \
 		fi; \
 	else \
 		echo "Skipping manifest: $(IMAGETAG)."; \
@@ -381,6 +399,20 @@ regbinfmt : ## register binfmt for multiarch on x86_64
 	fi;
 	#
 
+inbinfmt : BINFMTIMAGE ?= $(REGISTRY)/tonistiigi/binfmt
+inbinfmt : ## install binfmt for $(ARCH) on $(HOSTARCH)
+	if [ "$(ARCH)" != "$(HOSTARCH)" ]; then \
+		docker run --rm --privileged $(BINFMTIMAGE) --install "$(call get_binfmt_arch)"; \
+	fi;
+	#
+# unbinfmt : ARCH ?= *# to uninstall all emulators
+unbinfmt : BINFMTIMAGE ?= $(REGISTRY)/tonistiigi/binfmt
+unbinfmt : ## uninstall binfmt for $(ARCH) on $(HOSTARCH)
+	if [ "$(ARCH)" != "$(HOSTARCH)" ]; then \
+		docker run --rm --privileged $(BINFMTIMAGE) --uninstall "$(call get_binfmt_arch)"; \
+	fi;
+	#
+
 help : ## show this help
 	@sed -ne '/@sed/!s/## /|/p' $(MAKEFILE_LIST) | sed -e's/\W*:\W*=/:/g' | column -et -c 3 -s ':|?=' #| sort -h
 # -- }}}
@@ -418,6 +450,18 @@ MANIFEST_PLATFORM_MAP := \
 # $1 = ARCH
 define get_manifest_platform
 $(shell case "$(1)" in $(MANIFEST_PLATFORM_MAP) esac)
+endef
+
+# maps binfmt architecture to install for ARCH
+BINFMT_ARCH_MAP := \
+	'aarch64'    ) echo -n 'arm64'   ;; \
+	'armhf'      ) echo -n 'arm'     ;; \
+	'armv7l'     ) echo -n 'arm'     ;; \
+	'x86_64'     ) echo -n 'amd64'   ;; \
+	*            ) echo -n '*'       ;; \
+    #
+define get_binfmt_arch
+$(shell case "$(ARCH)" in $(BINFMT_ARCH_MAP) esac)
 endef
 
 # gets installed version string from built image

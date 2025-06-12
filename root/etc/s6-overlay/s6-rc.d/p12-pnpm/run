@@ -1,0 +1,61 @@
+#!/usr/bin/with-contenv bash
+set -e
+
+vecho () { if [ "${S6_VERBOSITY:-1}" -gt 0 ]; then echo "[$0] $@"; fi; }
+
+# install these packages using pnpm, specified on runtime
+# set pnpm cache dir to fix https://stackoverflow.com/questions/59437833
+# S6_PNPM_PACKAGES=""; # list of packages passed at runtime, if required
+if [ -n "${S6_PNPM_PACKAGES}" ];
+then
+    vecho "Installing PNPM global packages: ${S6_PNPM_PACKAGES}";
+    HOME=/root \
+    PNPM_HOME=/usr/local/bin \
+    npm_config_cache=/root/.pnpm \
+        s6-setuidgid root pnpm install -g ${S6_PNPM_PACKAGES};
+fi;
+
+# S6_PNPM_PROJECTDIR=""; # path to project passed at runtime, if required
+# S6_PNPM_LOCAL_PACKAGES=""; # list of packages passed at runtime, if required
+if [ -n "${S6_PNPM_PROJECTDIR}" ]; then
+    if [ ! -d "${S6_PNPM_PROJECTDIR}" ]; # ensure exists and accessible by $PUID/$PGID
+    then
+        vecho "Ensure project-dir exists: ${S6_PNPM_PROJECTDIR}";
+        mkdir -p ${S6_PNPM_PROJECTDIR};
+        chown ${S6_USER} ${S6_PNPM_PROJECTDIR};
+    fi;
+
+    if [ -f "${S6_PNPM_PROJECTDIR}/package.json" ] \
+    || [ -f "${S6_YARN_PROJECTDIR}/package.json5" ] \
+    || [ -f "${S6_YARN_PROJECTDIR}/package.yaml" ] \
+    || [ -f "${S6_PNPM_PROJECTDIR}/pnpm-lock.yaml" ]; \
+    then
+        vecho "Installing PNPM dependencies for: ${S6_PNPM_PROJECTDIR}";
+        cd ${S6_PNPM_PROJECTDIR} \
+        && npm_config_cache=${S6_PNPM_PROJECTDIR}/.pnpm \
+        s6-setuidgid \
+            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+            pnpm install;
+    fi;
+    if [ -n "${S6_PNPM_LOCAL_PACKAGES}" ];
+    then
+        vecho "Installing PNPM project-local packages: ${S6_PNPM_LOCAL_PACKAGES}";
+        cd ${S6_PNPM_PROJECTDIR} \
+        && npm_config_cache=${S6_PNPM_PROJECTDIR}/.pnpm \
+        s6-setuidgid \
+            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+            pnpm install ${S6_PNPM_LOCAL_PACKAGES};
+    fi;
+
+    # optionally add user package binaries dir to PATH
+    # visible to with-contenv
+    if [ -z "${NODEJS_SKIP_MODIFY_PATH}" ] \
+    && [[ "${PATH}" != *${S6_PNPM_PROJECTDIR}/node_modules/.bin* ]];
+    # && ls -A "${S6_PNPM_PROJECTDIR}/node_modules/.bin" 1>/dev/null 2>&1
+    # only check if dir exists, instead of checking if dir is empty
+    # because it might get populated in a later phase
+    then
+        vecho "Include project bin directory in \$PATH";
+        echo -en "${S6_PNPM_PROJECTDIR}/node_modules/.bin:${PATH}" > /run/s6/container_environment/PATH;
+    fi;
+fi;

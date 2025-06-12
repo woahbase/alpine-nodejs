@@ -4,40 +4,42 @@ ARG IMAGEBASE=frommakefile
 #
 FROM ${IMAGEBASE}
 #
-ENV \
-    NODE_OPTIONS="--max-old-space-size=3072"
-#
 RUN set -xe \
-    # && echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories \
     && apk add -Uu --purge --no-cache \
         curl \
         git \
         openssl \
-        # nodejs \
-        # npm \
-        # yarn \
-# 20240312 arm32 v6/v7 npm install still keeps hanging.
-# sticking to previous 18.x.x from 3.18 repos for now, until
-# https://github.com/nodejs/docker-node/issues/1946 is resolved
-    && { \
-        echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/main"; \
-        echo "http://dl-cdn.alpinelinux.org/alpine/v3.18/community"; \
-    } > /tmp/repo3.18 \
-    && apk add --no-cache \
-        --repositories-file "/tmp/repo3.18" \
+# use current available packages
         nodejs \
         npm \
+        pnpm \
         yarn \
+#
     && if [ -n $(which npm) ]; then \
         echo "Updating npm and yarn to latest"; \
         npm install -g \
+            --fetch-retries=5 \
+            --no-audit \
+            --no-fund \
+            --no-update-notifier \
             npm@latest \
+            pnpm@latest \
             yarn@latest \
+            # corepack@latest \
         ; \
     fi \
+# # let corepack handle pnpm/yarn installation
+#     && corepack enable pnpm yarn \
+#     # && corepack pack pnpm@latest \
+#     # && corepack install -g pnpm@latest \
+#     # && pnpm --version \
+#     # && corepack pack yarn@latest \
+#     # && corepack install -g yarn@latest \
+#     # && yarn --version \
     && npm ls \
     && find /usr/lib/node_modules/npm -name test -o -name .bin -type d | xargs rm -rf \
     && rm -rf \
+        /root/.cache \
         /root/.node-gyp \
         /root/.npm \
         /tmp/* \

@@ -24,8 +24,7 @@ if [ -n "${S6_NPM_PROJECTDIR}" ]; then
         chown ${S6_USER} ${S6_NPM_PROJECTDIR};
     fi;
 
-    if [ -z "${S6_NPM_SKIP_INSTALL}" ] \
-    && [ -f "${S6_NPM_PROJECTDIR}/package.json" ] \
+    if [ -f "${S6_NPM_PROJECTDIR}/package.json" ] \
     || [ -f "${S6_NPM_PROJECTDIR}/package-lock.json" ] \
     || [ -f "${S6_NPM_PROJECTDIR}/npm-shrinkwrap.json" ];
     then
@@ -45,7 +44,15 @@ if [ -n "${S6_NPM_PROJECTDIR}" ]; then
             $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
             npm install ${S6_NPM_LOCAL_PACKAGES};
     fi;
-    # add project node_modules binaries dir to PATH
+    # optionally add user package binaries dir to PATH
     # visible to with-contenv
-    echo -en "${S6_NPM_PROJECTDIR}/node_modules/.bin:$PATH" > /run/s6/container_environment/PATH;
+    if [ -z "${NODEJS_SKIP_MODIFY_PATH}" ] \
+    && [[ "${PATH}" != *${S6_NPM_PROJECTDIR}/node_modules/.bin* ]];
+    # && ls -A "${S6_NPM_PROJECTDIR}/node_modules/.bin" 1>/dev/null 2>&1
+    # only check if dir exists, instead of checking if dir is empty
+    # because it might get populated in a later phase
+    then
+        vecho "Include project bin directory in \$PATH";
+        echo -en "${S6_NPM_PROJECTDIR}/node_modules/.bin:${PATH}" > /run/s6/container_environment/PATH;
+    fi;
 fi;
