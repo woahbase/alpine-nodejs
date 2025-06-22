@@ -2,11 +2,14 @@
 set -e
 
 vecho () { if [ "${S6_VERBOSITY:-1}" -gt 0 ]; then echo "[$0] $@"; fi; }
+usercmd () { if [ "X${EUID}" != "X0" ]; then $@; else s6-setuidgid $(ls -ldn . | awk 'NR==1 {print $3":"$4}') $@; fi; }
+# uses projectdir perms instead of PUID/PGID
 
 # install these packages using yarn, specified on runtime
 # set yarn cache dir to fix https://stackoverflow.com/questions/59437833
 # S6_YARN_PACKAGES=""; # list of packages passed at runtime, if required
-if [ -n "${S6_YARN_PACKAGES}" ];
+if [ -n "${S6_YARN_PACKAGES}" ] \
+&& [ "X${EUID}" == "X0" ]; # requires root
 then
     vecho "Installing YARN global packages: ${S6_YARN_PACKAGES}";
     YARN_CACHE_FOLDER=/root/.cache/yarn \
@@ -20,7 +23,9 @@ if [ -n "${S6_YARN_PROJECTDIR}" ]; then
     then
         vecho "Ensure project-dir exists: ${S6_YARN_PROJECTDIR}";
         mkdir -p ${S6_YARN_PROJECTDIR};
-        chown ${S6_USER} ${S6_YARN_PROJECTDIR};
+        if [ "X${EUID}" == "X0" ];
+        then chown ${S6_USER:-alpine}:${PGID:-1000} ${S6_YARN_PROJECTDIR};
+        fi;
     fi;
 
     if [ -f "${S6_YARN_PROJECTDIR}/package.json" ] \
@@ -28,18 +33,18 @@ if [ -n "${S6_YARN_PROJECTDIR}" ]; then
     then
         vecho "Installing YARN dependencies for: ${S6_YARN_PROJECTDIR}";
         cd ${S6_YARN_PROJECTDIR} \
-        && YARN_CACHE_FOLDER=${S6_YARN_PROJECTDIR}/.cache/yarn \
-        s6-setuidgid \
-            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+        && HOME=${S6_YARN_PROJECTDIR} \
+           YARN_CACHE_FOLDER=${S6_YARN_PROJECTDIR}/.cache/yarn \
+        usercmd \
             yarn install;
     fi;
     if [ -n "${S6_YARN_LOCAL_PACKAGES}" ];
     then
         vecho "Installing YARN project-local packages: ${S6_YARN_LOCAL_PACKAGES}";
         cd ${S6_YARN_PROJECTDIR} \
-        && YARN_CACHE_FOLDER=${S6_YARN_PROJECTDIR}/.cache/yarn \
-        s6-setuidgid \
-            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+        && HOME=${S6_YARN_PROJECTDIR} \
+           YARN_CACHE_FOLDER=${S6_YARN_PROJECTDIR}/.cache/yarn \
+        usercmd \
             yarn add ${S6_YARN_LOCAL_PACKAGES};
     fi;
     # optionally add user package binaries dir to PATH

@@ -2,11 +2,14 @@
 set -e
 
 vecho () { if [ "${S6_VERBOSITY:-1}" -gt 0 ]; then echo "[$0] $@"; fi; }
+usercmd () { if [ "X${EUID}" != "X0" ]; then $@; else s6-setuidgid $(ls -ldn . | awk 'NR==1 {print $3":"$4}') $@; fi; }
+# uses projectdir perms instead of PUID/PGID
 
 # install these packages using pnpm, specified on runtime
 # set pnpm cache dir to fix https://stackoverflow.com/questions/59437833
 # S6_PNPM_PACKAGES=""; # list of packages passed at runtime, if required
-if [ -n "${S6_PNPM_PACKAGES}" ];
+if [ -n "${S6_PNPM_PACKAGES}" ] \
+&& [ "X${EUID}" == "X0" ]; # requires root
 then
     vecho "Installing PNPM global packages: ${S6_PNPM_PACKAGES}";
     HOME=/root \
@@ -22,7 +25,9 @@ if [ -n "${S6_PNPM_PROJECTDIR}" ]; then
     then
         vecho "Ensure project-dir exists: ${S6_PNPM_PROJECTDIR}";
         mkdir -p ${S6_PNPM_PROJECTDIR};
-        chown ${S6_USER} ${S6_PNPM_PROJECTDIR};
+        if [ "X${EUID}" == "X0" ];
+        then chown ${S6_USER:-alpine}:${PGID:-1000} ${S6_PNPM_PROJECTDIR};
+        fi;
     fi;
 
     if [ -f "${S6_PNPM_PROJECTDIR}/package.json" ] \
@@ -33,8 +38,7 @@ if [ -n "${S6_PNPM_PROJECTDIR}" ]; then
         vecho "Installing PNPM dependencies for: ${S6_PNPM_PROJECTDIR}";
         cd ${S6_PNPM_PROJECTDIR} \
         && npm_config_cache=${S6_PNPM_PROJECTDIR}/.pnpm \
-        s6-setuidgid \
-            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+        usercmd \
             pnpm install;
     fi;
     if [ -n "${S6_PNPM_LOCAL_PACKAGES}" ];
@@ -42,8 +46,7 @@ if [ -n "${S6_PNPM_PROJECTDIR}" ]; then
         vecho "Installing PNPM project-local packages: ${S6_PNPM_LOCAL_PACKAGES}";
         cd ${S6_PNPM_PROJECTDIR} \
         && npm_config_cache=${S6_PNPM_PROJECTDIR}/.pnpm \
-        s6-setuidgid \
-            $(ls -ldn . | awk 'NR==1 {print $3":"$4}') \
+        usercmd \
             pnpm install ${S6_PNPM_LOCAL_PACKAGES};
     fi;
 
