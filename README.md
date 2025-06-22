@@ -15,8 +15,8 @@
 [![dh_size:i386][211]][161]
 [![dh_size:ppc64le][213]][163]
 [![dh_size:riscv64][214]][164]
-[![dh_size:s390x][215]][165]
 [![dh_size:x86_64][207]][157]
+<!--[![dh_size:s390x][215]][165]-->
 <!--[![dh_size:loong64][212]][162]-->
 
 MultiArch Alpine Linux + S6 + NodeJS + NPM + Yarn + PNPM.

@@ -35,6 +35,7 @@ TESTCMD   := \
 	#
 
 SKIP_loong64 := 1
+SKIP_s390x   := 1
 # -- }}}
 
 # {{{ -- flags
